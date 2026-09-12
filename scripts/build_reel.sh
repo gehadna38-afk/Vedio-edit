@@ -39,6 +39,30 @@ python3 "$ROOT/scripts/gen_subs.py" "$MAIN_DUR" "$OUTRO" "$BUILD"
 # upscaled 1.875x, so it needs a little contrast, saturation and sharpening.
 GRADE="eq=contrast=1.08:saturation=1.18:brightness=0.02:gamma=1.02"
 
+# Two-pass loudness: single-pass loudnorm only approximates the target, and
+# undershoots on percussive material. Measure first, then apply linear gain.
+echo ">> measuring loudness"
+MEASURED=$(ffmpeg -hide_banner -nostats -i "$BUILD/music.wav" \
+  -af "atrim=0:${TOTAL},loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json" \
+  -f null - 2>&1 | python3 -c '
+import json, re, sys
+m = re.search(r"\{[^{}]*input_i[^{}]*\}", sys.stdin.read(), re.S)
+if not m:
+    sys.exit(1)
+d = json.loads(m.group(0))
+print("measured_I=%s:measured_TP=%s:measured_LRA=%s:measured_thresh=%s"
+      ":offset=%s:linear=true" % (d["input_i"], d["input_tp"], d["input_lra"],
+                                  d["input_thresh"], d["target_offset"]))
+' || echo "")
+
+if [ -n "$MEASURED" ]; then
+  LOUDNORM="loudnorm=I=-14:TP=-1.5:LRA=11:${MEASURED}"
+  echo "   $MEASURED"
+else
+  echo "   measurement failed; falling back to single-pass"
+  LOUDNORM="loudnorm=I=-14:TP=-1.5:LRA=11"
+fi
+
 echo ">> capturing closing frame"
 ffmpeg -v error -y -sseof -0.4 -i "$SRC" \
   -vf "scale=1080:1920:flags=lanczos,${GRADE}" \
@@ -63,8 +87,8 @@ ffmpeg -v warning -stats -y \
          ass=${BUILD}/outro.ass,
          format=yuv420p,setsar=1[v1];
     [v0][v1]xfade=transition=fade:duration=${XFADE}:offset=${XFADE_AT}[v];
-    [2:a]loudnorm=I=-14:TP=-1.5:LRA=11,
-         atrim=0:${TOTAL},
+    [2:a]atrim=0:${TOTAL},asetpts=PTS-STARTPTS,
+         ${LOUDNORM},
          afade=t=out:st=${FADE_AT}:d=2.2,
          aresample=44100[a]
   " \
