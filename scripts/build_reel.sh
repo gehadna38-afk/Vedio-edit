@@ -75,6 +75,7 @@ ffmpeg -v warning -stats -y \
   -i "$BUILD/music.wav" \
   -filter_complex "
     [0:v]setpts=PTS/${SPEED},fps=${FPS},
+         hqdn3d=1.2:1.0:5:5,
          scale=1080:1920:flags=lanczos,
          ${GRADE},
          unsharp=5:5:0.55:5:5:0.0,
@@ -93,7 +94,7 @@ ffmpeg -v warning -stats -y \
          aresample=44100[a]
   " \
   -map "[v]" -map "[a]" \
-  -c:v libx264 -preset slow -crf 20 -profile:v high -level:v 4.1 \
+  -c:v libx264 -preset slower -crf 17 -profile:v high -level:v 4.1 \
   -pix_fmt yuv420p -r $FPS -g 60 -keyint_min 30 -sc_threshold 0 \
   -color_primaries bt709 -color_trc bt709 -colorspace bt709 \
   -c:a aac -b:a 192k -ar 44100 -ac 2 \
