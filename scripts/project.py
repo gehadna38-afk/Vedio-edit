@@ -36,6 +36,7 @@ DEFAULTS = {
     },
     "theme": {
         "font": "Lemonada",
+        "font_body": "Lemonada",
         "white": "&H00FFFFFF",
         "accent": "&H0055C8F7",
         "outline": "&H00241A12",
@@ -55,7 +56,9 @@ DEFAULTS = {
         "file": "assets/logo.png",
         "small_w": 190, "small_y": 230,
         "big_w": 620, "big_y": 700, "big_from": 0, "big_to": 0,
+        "small_before_brand": True,
     },
+    "voiceover": {"file": "", "gain": 1.0, "music_gain": 0.70, "script": []},
     "backdrop": {
         "top": "#FFFFFF",
         "bottom": "#EAF1FC",

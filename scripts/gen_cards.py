@@ -25,7 +25,7 @@ import random
 import sys
 
 import project as project_mod
-from assbase import ass_colour, circle, ev, rrect, shape, star
+from assbase import ass_colour, circle, ev, f, rrect, shape, star
 
 W, H = 1080, 1920
 
@@ -49,13 +49,15 @@ YCbCr Matrix: TV.709
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: H1,{font},80,{ink},{ink},&H00FFFFFF,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,5,40,40,40,1
-Style: H2,{font},58,{ink},{ink},&H00FFFFFF,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,5,40,40,40,1
-Style: Body,{font},44,{ink},{ink},&H00FFFFFF,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,40,40,40,1
-Style: Pill,{font},46,{ink},{ink},&H00FFFFFF,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,6,40,40,40,1
-Style: Dot,{font},40,&H00FFFFFF,&H00FFFFFF,&H00FFFFFF,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1
-Style: Icon,DejaVu Sans,44,&H00FFFFFF,&H00FFFFFF,&H00FFFFFF,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1
-Style: Phone,{font},58,&H00FFFFFF,&H00FFFFFF,&H00FFFFFF,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1
+Style: H1,{font},86,{ink},{ink},&H00FFFFFF,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,5,40,40,40,1
+Style: Bub,{font},78,{ink},{ink},&H00FFFFFF,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,5,40,40,40,1
+Style: Chip,{body},42,&H00FFFFFF,&H00FFFFFF,&H00FFFFFF,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1
+Style: H2,{font},62,{ink},{ink},&H00FFFFFF,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,5,40,40,40,1
+Style: Body,{body},50,{ink},{ink},&H00FFFFFF,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,5,40,40,40,1
+Style: Pill,{body},50,{ink},{ink},&H00FFFFFF,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,6,40,40,40,1
+Style: Dot,{body},44,&H00FFFFFF,&H00FFFFFF,&H00FFFFFF,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1
+Style: Icon,DejaVu Sans,50,&H00FFFFFF,&H00FFFFFF,&H00FFFFFF,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1
+Style: Phone,{body},66,&H00FFFFFF,&H00FFFFFF,&H00FFFFFF,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1
 Style: Shape,{font},40,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 
 [Events]
@@ -104,6 +106,69 @@ def scene_hook(sc, pal, out):
                       "{\\an5\\pos(%d,%d)\\fad(320,240)\\c%s}%s"
                       % (W // 2, bar_y + 76, pal.ass(sc.get("sub_colour", "teal_ink")),
                          nl(sc["sub"]))))
+
+
+def bubble_paths(x, y, w, h, r, tail_cx, kind, grow=0.0):
+    """Bubble body plus its tail, as one or more ASS drawing sub-paths.
+
+    `grow` inflates everything evenly; the shadow pass uses it so the shadow
+    reads as one soft shape under the whole bubble rather than two.
+    """
+    g = grow
+    body = rrect(x - g, y - g, w + 2 * g, h + 2 * g, r + g)
+    if kind == "thought":
+        # Three shrinking puffs, the classic "this is a thought" cue.
+        puffs = [(tail_cx, y + h + 34, 26), (tail_cx - 34, y + h + 86, 17),
+                 (tail_cx - 62, y + h + 126, 10)]
+        return " ".join([body] + [circle(cx, cy, rr + g) for cx, cy, rr in puffs])
+    tip_x, tip_y = tail_cx - 26, y + h + 74 + g
+    return "%s m %s %s l %s %s l %s %s" % (
+        body, f(tail_cx - 46 - g), f(y + h - 6), f(tail_cx + 40 + g),
+        f(y + h - 6), f(tip_x), f(tip_y))
+
+
+def scene_bubble(sc, pal, out):
+    """One beat of the story: somebody says or thinks a single line."""
+    t0, t1 = sc["start"], sc["end"]
+    w = sc.get("w", 760)
+    x = (W - w) // 2
+    y = sc.get("y", 620)
+    h = sc.get("h", 320)
+    kind = sc.get("kind", "speech")
+    # The tail leans towards whoever is talking.
+    tail_cx = x + (w - 150 if sc.get("side", "right") == "right" else 150)
+
+    out.append(shape(L_SHADOW, t0, t1, ass_colour("#0B2C63"),
+                     bubble_paths(x + 4, y + 12, w, h, 44, tail_cx, kind, 2),
+                     "\\alpha&HDE&\\blur18\\fad(300,240)"))
+    out.append(shape(L_CARD, t0, t1, "&H00FFFFFF",
+                     bubble_paths(x, y, w, h, 44, tail_cx, kind),
+                     "\\fad(300,240)"))
+
+    lines = nl(sc["text"])
+    out.append(ev(L_TEXT, t0 + 0.12, t1, sc.get("style", "Bub"),
+                  "{\\an5\\move(%d,%d,%d,%d,0,300)\\fad(300,240)\\c%s}%s"
+                  % (W // 2, y + h // 2 + 20, W // 2, y + h // 2,
+                     pal.ass(sc.get("colour", "navy")), lines)))
+
+    # Chip naming the speaker, tucked under the tail.
+    if sc.get("who"):
+        chip_w, chip_h = sc.get("chip_w", 210), 76
+        chip_x = tail_cx - chip_w // 2 - 10
+        chip_y = y + h + (170 if kind == "thought" else 92)
+        out.append(shape(L_ACCENT, t0 + 0.20, t1, pal.ass(sc.get("who_colour", "teal")),
+                         rrect(chip_x, chip_y, chip_w, chip_h, chip_h / 2.0),
+                         "\\fad(320,240)"))
+        out.append(ev(L_TEXT, t0 + 0.20, t1, "Chip",
+                      "{\\an5\\pos(%d,%d)\\fad(320,240)}%s"
+                      % (chip_x + chip_w // 2, chip_y + chip_h // 2, sc["who"])))
+
+    if sc.get("caption"):
+        cap_y = sc.get("caption_y", y + h + (330 if kind == "thought" else 300))
+        out.append(ev(L_TEXT, t0 + 0.34, t1, "Body",
+                      "{\\an5\\pos(%d,%d)\\fad(340,240)\\c%s}%s"
+                      % (W // 2, cap_y, pal.ass(sc.get("caption_colour", "teal_ink")),
+                         nl(sc["caption"]))))
 
 
 def scene_brand(sc, pal, out):
@@ -197,12 +262,12 @@ def scene_cta(sc, pal, out):
                   % (W // 2 - 26, bar_y + 65, sc["phone"])))
     if sc.get("address"):
         out.append(ev(L_TEXT, t0 + 0.60, t1, "Body",
-                      "{\\an5\\pos(%d,%d)\\fad(360,260)\\fs38\\c%s}%s"
+                      "{\\an5\\pos(%d,%d)\\fad(360,260)\\fs42\\c%s}%s"
                       % (W // 2, bar_y + 206, pal.ass("navy"), nl(sc["address"]))))
 
 
-SCENES = {"hook": scene_hook, "brand": scene_brand, "list": scene_list,
-          "cta": scene_cta}
+SCENES = {"hook": scene_hook, "bubble": scene_bubble, "brand": scene_brand,
+          "list": scene_list, "cta": scene_cta}
 
 
 def stars(cfg, pal, duration, out):
@@ -221,7 +286,7 @@ def stars(cfg, pal, duration, out):
         size = rng.randint(13, 23)
         t0 = rng.uniform(0.0, 2.5)
         out.append(ev(L_STAR, t0, duration, "Shape",
-                      "{\\an7\\move(%d,%d,%d,%d,0,%d)\\alpha&H86&\\fad(900,600)"
+                      "{\\an7\\move(%d,%d,%d,%d,0,%d)\\alpha&H90&\\fad(900,600)"
                       "\\c%s\\p1}%s"
                       % (0, 0, 0, -rise, int((duration - t0) * 1000), colour,
                          star(x, y0, size))))
@@ -246,6 +311,7 @@ def build(cfg):
     pal = Palette(cfg["theme"]["palette"])
     total = duration_of(cfg)
     out = [HEADER_TMPL.format(w=W, h=H, font=cfg["theme"]["font"],
+                              body=cfg["theme"]["font_body"],
                               ink=pal.ass("navy"))]
     stars(cfg, pal, total, out)
     for sc in cfg["scenes"]:
