@@ -48,6 +48,21 @@ DEFAULTS = {
     "outro": {"lines": [], "cta": ""},
     "music": {"mood": "kids", "bpm": 104, "transpose": 0},
     "post": {"caption": "", "alt": ""},
+
+    # Card reels only: no footage, so the background is drawn and the body is a
+    # list of scenes rather than captions timed to a clip.
+    "logo": {
+        "file": "assets/logo.png",
+        "small_w": 190, "small_y": 230,
+        "big_w": 620, "big_y": 700, "big_from": 0, "big_to": 0,
+    },
+    "backdrop": {
+        "top": "#FFFFFF",
+        "bottom": "#EAF1FC",
+        "blobs": [],
+    },
+    "scenes": [],
+    "stars": [],
 }
 
 

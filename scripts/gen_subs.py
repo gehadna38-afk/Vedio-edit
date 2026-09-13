@@ -19,6 +19,7 @@ import os
 import sys
 
 import project as project_mod
+from assbase import ev, f, rrect, shape, ts  # noqa: F401  (f/ts used via rrect)
 
 W, H = 1080, 1920
 
@@ -38,37 +39,7 @@ TITLE_CY = 356
 TITLE_Y = TITLE_CY - TITLE_H // 2
 
 
-def ts(seconds):
-    """Seconds -> ASS timestamp H:MM:SS.cc"""
-    if seconds < 0:
-        seconds = 0.0
-    cs = int(round(seconds * 100))
-    h, cs = divmod(cs, 360000)
-    m, cs = divmod(cs, 6000)
-    s, cs = divmod(cs, 100)
-    return "%d:%02d:%02d.%02d" % (h, m, s, cs)
-
-
-def rrect(x, y, w, h, r):
-    """Rounded rectangle as an ASS drawing path."""
-    r = min(r, w / 2.0, h / 2.0)
-    x2, y2 = x + w, y + h
-    return (
-        "m {xr} {y} l {x2r} {y} b {x2} {y} {x2} {y} {x2} {yr} "
-        "l {x2} {y2r} b {x2} {y2} {x2} {y2} {x2r} {y2} "
-        "l {xr} {y2} b {x} {y2} {x} {y2} {x} {y2r} "
-        "l {x} {yr} b {x} {y} {x} {y} {xr} {y}"
-    ).format(x=f(x), y=f(y), x2=f(x2), y2=f(y2), xr=f(x + r), yr=f(y + r),
-             x2r=f(x2 - r), y2r=f(y2 - r))
-
-
-def f(v):
-    return ("%.1f" % v).rstrip("0").rstrip(".")
-
-
-# Every style must keep Spacing at 0: a non-zero value makes libass position
-# glyphs individually, which disables Arabic shaping and bidi reordering and
-# renders the text backwards in disconnected letterforms.
+# Every style must keep Spacing at 0 - see assbase for why.
 HEADER_TMPL = """[Script Info]
 ScriptType: v4.00+
 PlayResX: {w}
@@ -93,16 +64,6 @@ def header(theme):
     return HEADER_TMPL.format(w=W, h=H, font=theme["font"],
                               white=theme["white"], accent=theme["accent"],
                               outline=theme["outline"])
-
-
-def ev(layer, start, end, style, text):
-    return "Dialogue: %d,%s,%s,%s,,0,0,0,,%s\n" % (
-        layer, ts(start), ts(end), style, text)
-
-
-def shape(layer, start, end, colour, path, extra=""):
-    return ev(layer, start, end, "Shape",
-              "{\\an7\\pos(0,0)\\c%s%s\\p1}%s" % (colour, extra, path))
 
 
 def build_main(cfg, duration):
