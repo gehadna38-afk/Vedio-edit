@@ -1,24 +1,47 @@
 #!/usr/bin/env bash
-# Build the publish-ready Facebook Reel from the raw session footage.
+# Build a publish-ready Facebook Reel from raw session footage.
 #
-#   ./scripts/build_reel.sh [SOURCE] [OUTPUT]
+#   ./scripts/build_reel.sh [PROJECT] [SOURCE] [OUTPUT]
+#
+# PROJECT is a file under projects/ (name, filename or path); it carries the
+# footage path, the on-screen text, the colours, the pacing and grade, the
+# music mood and the post copy. SOURCE and OUTPUT override the project's own
+# paths.
 #
 # Output: 1080x1920, 30fps, H.264 High + AAC, faststart, ~-14 LUFS.
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SRC="${1:-$ROOT/build/source.mov}"
-OUT="${2:-$ROOT/output/reel_facebook.mp4}"
+PROJECT="${1:-skills-rings}"
 BUILD="$ROOT/build"
 
-# Gentle speed-up: tightens the pacing for a feed without reading as sped up.
-SPEED=1.15
-OUTRO=5.0
-XFADE=0.6
-FPS=30
+cfg() { python3 "$ROOT/scripts/project.py" "$PROJECT" get "$@"; }
+
+SRC="${2:-$ROOT/$(cfg source)}"
+OUT="${3:-$ROOT/$(cfg output)}"
+
+SPEED=$(cfg video.speed)
+OUTRO=$(cfg video.outro)
+XFADE=$(cfg video.xfade)
+FPS=$(cfg video.fps)
+CRF=$(cfg video.crf)
+PRESET=$(cfg video.preset)
+LUFS=$(cfg video.loudness)
+
+# Grade and clean-up applied to the footage. Defaults suit a dim indoor phone
+# clip upscaled to 1080x1920: a little contrast, saturation and sharpening.
+GRADE=$(cfg video.grade)
+DENOISE=$(cfg video.denoise)
+UNSHARP=$(cfg video.unsharp)
+VIGNETTE=$(cfg video.vignette)
 
 mkdir -p "$BUILD" "$(dirname "$OUT")"
+
+if [ ! -f "$SRC" ]; then
+  echo "source footage not found: $SRC" >&2
+  exit 1
+fi
 
 SRC_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$SRC")
 MAIN_DUR=$(python3 -c "print('%.4f' % ($SRC_DUR / $SPEED))")
@@ -27,23 +50,20 @@ XFADE_AT=$(python3 -c "print('%.4f' % ($MAIN_DUR - $XFADE))")
 MUSIC_DUR=$(python3 -c "print('%.2f' % ($TOTAL + 0.2))")
 FADE_AT=$(python3 -c "print('%.2f' % ($TOTAL - 2.2))")
 
+echo ">> project $PROJECT"
 echo ">> source ${SRC_DUR}s -> main ${MAIN_DUR}s + outro ${OUTRO}s = ${TOTAL}s"
 
 echo ">> generating music"
-python3 "$ROOT/scripts/make_music.py" "$BUILD/music.wav" "$MUSIC_DUR"
+python3 "$ROOT/scripts/make_music.py" "$PROJECT" "$BUILD/music.wav" "$MUSIC_DUR"
 
 echo ">> generating captions"
-python3 "$ROOT/scripts/gen_subs.py" "$MAIN_DUR" "$OUTRO" "$BUILD"
-
-# Grade applied to the footage. The source is a dim indoor 576x1024 phone clip
-# upscaled 1.875x, so it needs a little contrast, saturation and sharpening.
-GRADE="eq=contrast=1.08:saturation=1.18:brightness=0.02:gamma=1.02"
+python3 "$ROOT/scripts/gen_subs.py" "$PROJECT" "$MAIN_DUR" "$OUTRO" "$BUILD"
 
 # Two-pass loudness: single-pass loudnorm only approximates the target, and
 # undershoots on percussive material. Measure first, then apply linear gain.
 echo ">> measuring loudness"
 MEASURED=$(ffmpeg -hide_banner -nostats -i "$BUILD/music.wav" \
-  -af "atrim=0:${TOTAL},loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json" \
+  -af "atrim=0:${TOTAL},loudnorm=I=${LUFS}:TP=-1.5:LRA=11:print_format=json" \
   -f null - 2>&1 | python3 -c '
 import json, re, sys
 m = re.search(r"\{[^{}]*input_i[^{}]*\}", sys.stdin.read(), re.S)
@@ -56,11 +76,11 @@ print("measured_I=%s:measured_TP=%s:measured_LRA=%s:measured_thresh=%s"
 ' || echo "")
 
 if [ -n "$MEASURED" ]; then
-  LOUDNORM="loudnorm=I=-14:TP=-1.5:LRA=11:${MEASURED}"
+  LOUDNORM="loudnorm=I=${LUFS}:TP=-1.5:LRA=11:${MEASURED}"
   echo "   $MEASURED"
 else
   echo "   measurement failed; falling back to single-pass"
-  LOUDNORM="loudnorm=I=-14:TP=-1.5:LRA=11"
+  LOUDNORM="loudnorm=I=${LUFS}:TP=-1.5:LRA=11"
 fi
 
 echo ">> capturing closing frame"
@@ -75,11 +95,11 @@ ffmpeg -v warning -stats -y \
   -i "$BUILD/music.wav" \
   -filter_complex "
     [0:v]setpts=PTS/${SPEED},fps=${FPS},
-         hqdn3d=1.2:1.0:5:5,
+         ${DENOISE},
          scale=1080:1920:flags=lanczos,
          ${GRADE},
-         unsharp=5:5:0.55:5:5:0.0,
-         vignette=PI/5,
+         ${UNSHARP},
+         ${VIGNETTE},
          ass=${BUILD}/main.ass,
          format=yuv420p,setsar=1[v0];
     [1:v]scale=1080:1920,gblur=sigma=22,
@@ -94,7 +114,7 @@ ffmpeg -v warning -stats -y \
          aresample=44100[a]
   " \
   -map "[v]" -map "[a]" \
-  -c:v libx264 -preset slower -crf 17 -profile:v high -level:v 4.1 \
+  -c:v libx264 -preset "$PRESET" -crf "$CRF" -profile:v high -level:v 4.1 \
   -pix_fmt yuv420p -r $FPS -g 60 -keyint_min 30 -sc_threshold 0 \
   -color_primaries bt709 -color_trc bt709 -colorspace bt709 \
   -c:a aac -b:a 192k -ar 44100 -ac 2 \

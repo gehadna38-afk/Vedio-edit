@@ -1,10 +1,17 @@
-# ريل تنمية المهارات — Skills Development Reel
+# ماكينة ريلز فيسبوك — Facebook Reel Builder
 
-مونتاج احترافي لفيديو تدريب تنمية مهارات (لعبة الحلقات الملوّنة)، جاهز للنشر على فيسبوك كـ Reel.
+پايبلاين مونتاج بيحوّل لقطة خام إلى ريل جاهز للنشر على فيسبوك: مقاس ‏9:16، كابشن
+عربي محروق في الصورة، تتر افتتاحي، مزيكا متولّدة من غير حقوق، وكارت ختامي.
+
+كل ريل هو **ملف مشروع واحد** في `projects/`. السكربتات مافيهاش أي نص أو لون أو
+اسم عيادة — كله جاي من ملف المشروع، فإضافة مشروع جديد = ملف JSON جديد + اللقطة.
+
+المشروع الأول: `projects/skills-rings.json` — جلسة تنمية مهارات (لعبة الحلقات
+الملوّنة) لسوبر نينو ببنها.
 
 **الناتج:** `output/reel_facebook.mp4` — ‏1080×1920، ‏30fps، ‏47.8 ثانية، ‏H.264 + AAC.
 
-## اللي اتعمل في المونتاج
+## اللي اتعمل في مشروع `skills-rings`
 
 | | |
 |---|---|
@@ -31,6 +38,9 @@
 
 بوست بيعي على أسلوب إعلانات صفحة **SUPER Nino**: سؤال بيلمس قلق الأم، ثم الفايدة،
 ثم دعوة للحجز، ثم التليفون والعنوان، ثم الهاشتاجات.
+
+النص محفوظ في `post.caption` جوه `projects/skills-rings.json` (والصيغة البديلة في
+`post.alt`)، والنسخة اللي تحت منقولة منه:
 
 > طفلك بيسيب اللعبة في نصها؟ مش بيركز؟ صوابعه لسه مش ماسكة كويس؟ 🤔
 >
@@ -79,38 +89,73 @@
 ## إعادة البناء / التعديل — Rebuilding
 
 ```bash
-./scripts/build_reel.sh [SOURCE] [OUTPUT]
+./scripts/build_reel.sh [PROJECT] [SOURCE] [OUTPUT]
+./scripts/build_reel.sh skills-rings          # المشروع الحالي
 ```
 
 Requires `ffmpeg` (with libass built against HarfBuzz and FriBidi) and the
 `fonts-lemonada` package. No Python dependencies beyond the standard library.
 
+```bash
+apt-get install -y ffmpeg fonts-lemonada
+```
+
 ### Files
 
+- `projects/*.json` — one file per reel: footage path, on-screen text, colours, pacing, music, post copy.
+- `projects/TEMPLATE.json` — a filled-in blank to copy for a new reel.
 - `scripts/build_reel.sh` — the whole pipeline; denoise, grade, speed, captions, end card, mix, encode.
+- `scripts/project.py` — loads a project file and fills in defaults.
 - `scripts/gen_subs.py` — writes the burned-in caption tracks (`main.ass`, `outro.ass`).
 - `scripts/make_music.py` — synthesises the background track.
-- `build/source.mov` — the original footage.
+- `build/source.mov` — the footage for `skills-rings`.
 
-### Editing the on-screen captions
+## مشروع جديد — Starting a new reel
 
-Caption text and timings live in the `CAPTIONS` list in `scripts/gen_subs.py`,
-as `(start, end, line1, line2)`. Titles are `TITLE_MAIN` / `TITLE_SUB`, and the
-end card is `OUTRO_LINES` / `OUTRO_CTA`. Re-run `build_reel.sh` after editing.
+```bash
+cp projects/TEMPLATE.json projects/my-reel.json
+cp /path/to/footage.mov build/my-footage.mov
+$EDITOR projects/my-reel.json          # source/output, النصوص، المزيكا
+./scripts/build_reel.sh my-reel
+```
 
-Two constraints:
+الحاجات اللي بتتغيّر من مشروع لمشروع كلها في ملف الـJSON:
 
-- Keep every ASS style's `Spacing` at `0`. A non-zero value makes libass lay out
-  glyphs individually, which silently disables Arabic shaping and bidi — the
-  text renders backwards in disconnected letterforms.
-- Captions may only describe what is visible. The source has no audio, so any
-  claim about what was said during the session is unverifiable.
+| الحقل | بيتحكم في إيه |
+|---|---|
+| `source` / `output` | مسار اللقطة الخام ومسار الناتج |
+| `title.main` / `title.sub` | التتر الافتتاحي وسطره التوضيحي |
+| `captions` | كل كابشن: `[البداية, النهاية, السطر الأول, السطر التاني]` بالثواني |
+| `outro.lines` / `outro.cta` | الكارت الختامي والدعوة لاتخاذ إجراء |
+| `theme` | الخط والألوان (‏ASS بصيغة `&HAABBGGRR`، ‏alpha ‏00 = معتم) |
+| `video.speed` / `outro` / `xfade` | الإيقاع، طول الكارت الختامي، مدة الانتقال |
+| `video.grade` / `denoise` / `unsharp` / `vignette` | فلاتر الصورة (سلاسل ffmpeg) |
+| `video.crf` / `preset` / `loudness` | جودة الإنكود ومستوى الصوت |
+| `music.mood` / `bpm` / `transpose` | المزيكا |
+| `post.caption` / `alt` | نص البوست الجاهز للنشر |
 
-### Tuning
+أي حقل تسيبه، السكربت بياخد الافتراضي بتاعه من `DEFAULTS` في `scripts/project.py`.
 
-Knobs at the top of `build_reel.sh`: `SPEED` (pacing), `OUTRO` (end card
-length), `XFADE` (dissolve), and `GRADE` (the colour correction string).
-Encode quality is `-crf` / `-preset` near the bottom.
+### المزيكا
 
-To add a clinic name or handle to the reel, add a persistent `Dialogue` line to
-the header of `build_main()` in `gen_subs.py`.
+`music.mood` بيختار التوزيع للّحن نفسه (٨ مازورات في دو ماجور):
+
+- `kids` — زيلوفون فوق باص ماريمبا نطّاط مع كيك وشيكر. مناسب لمحتوى الأطفال.
+- `calm` — نفس اللحن من غير درامز: جرس هادي وباص خفيف وپاد أوسع. لما تكون
+  النطّة الطفولية في غير محلها (كبار، تقييمات، أي محتوى جاد).
+
+`bpm` بيغيّر السرعة و`transpose` بينقل الطبقة بالسيمي-تون (‏`-12` = أوكتاڤ تحت).
+ولو عايز لحن تاني خالص، حُط `melody` و`chords` و`roots` في ملف المشروع وهيتستخدموا
+بدل الافتراضي.
+
+### قيدان لازم تتراعى
+
+- خلّي `Spacing` في كل ستايل ASS بـ `0`. أي قيمة تانية بتخلّي libass يرصّ الحروف
+  واحد واحد، وده بيوقّف تشكيل العربي والـbidi بصمت — النص بيطلع مقلوب وحروفه مفكوكة.
+- الكابشن يوصف اللي **ظاهر** بس. لو اللقطة مالهاش صوت، أي جملة بتدّعي حاجة اتقالت
+  مش ممكن نتأكد منها.
+
+### إضافة اسم الصفحة على الريل
+
+ضيف سطر `Dialogue` ثابت في `build_main()` في `gen_subs.py` — الجزء ده لسه في الكود
+لأنه شكل ثابت مش نص مشروع.

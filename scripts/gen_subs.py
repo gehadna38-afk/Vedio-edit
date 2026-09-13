@@ -1,21 +1,26 @@
 #!/usr/bin/env python3
-"""Generate the burned-in Arabic caption tracks (ASS) for the reel.
+"""Generate the burned-in Arabic caption tracks (ASS) for a reel.
 
 libass is built here with HarfBuzz and FriBidi, so Arabic text is shaped and
-bidi-reordered correctly; the text below is written in plain logical order.
+bidi-reordered correctly; the text in the project file is written in plain
+logical order.
 
 Layout targets Facebook Reels safe zones: captions sit around 58-70% of the
 frame height, clear of the bottom description strip and the right-hand action
-rail, and clear of the toy itself, which stays near the vertical middle.
+rail, and clear of the subject, which stays near the vertical middle.
 
-Usage: python3 gen_subs.py MAIN_DURATION_SECONDS OUTRO_DURATION_SECONDS OUTDIR
+All text, colours and timings come from the project JSON; this file holds only
+the layout and animation, which is the same for every reel.
+
+Usage: python3 gen_subs.py PROJECT MAIN_DURATION OUTRO_DURATION OUTDIR
 """
 
 import os
 import sys
 
+import project as project_mod
+
 W, H = 1080, 1920
-FONT = "Lemonada"
 
 # Caption plate geometry.
 PLATE_W, PLATE_H = 830, 216
@@ -31,14 +36,6 @@ TITLE_W, TITLE_H = 780, 208
 TITLE_X = (W - TITLE_W) // 2
 TITLE_CY = 356
 TITLE_Y = TITLE_CY - TITLE_H // 2
-
-# ASS colours are &HAABBGGRR (alpha 00 = opaque).
-PLATE_FILL = "&H4A1D1712"      # deep warm charcoal, ~71% opaque
-TITLE_FILL = "&H3A1D1712"
-WHITE = "&H00FFFFFF"
-AMBER = "&H0055C8F7"           # warm amber accent
-OUTLINE = "&H00241A12"
-BAR_TRACK = "&H8AFFFFFF"
 
 
 def ts(seconds):
@@ -72,7 +69,7 @@ def f(v):
 # Every style must keep Spacing at 0: a non-zero value makes libass position
 # glyphs individually, which disables Arabic shaping and bidi reordering and
 # renders the text backwards in disconnected letterforms.
-HEADER = """[Script Info]
+HEADER_TMPL = """[Script Info]
 ScriptType: v4.00+
 PlayResX: {w}
 PlayResY: {h}
@@ -84,12 +81,18 @@ YCbCr Matrix: TV.709
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Cap,{font},54,{white},{white},{outline},&H64000000,-1,0,0,0,100,100,0,0,1,3.2,2.4,5,40,40,40,1
 Style: Big,{font},74,{white},{white},{outline},&H64000000,-1,0,0,0,100,100,0,0,1,3.6,2.6,5,40,40,40,1
-Style: Sub,{font},40,{amber},{amber},{outline},&H64000000,-1,0,0,0,100,100,0,0,1,2.6,1.8,5,40,40,40,1
+Style: Sub,{font},40,{accent},{accent},{outline},&H64000000,-1,0,0,0,100,100,0,0,1,2.6,1.8,5,40,40,40,1
 Style: Shape,{font},40,{white},{white},&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-""".format(w=W, h=H, font=FONT, white=WHITE, amber=AMBER, outline=OUTLINE)
+"""
+
+
+def header(theme):
+    return HEADER_TMPL.format(w=W, h=H, font=theme["font"],
+                              white=theme["white"], accent=theme["accent"],
+                              outline=theme["outline"])
 
 
 def ev(layer, start, end, style, text):
@@ -102,98 +105,82 @@ def shape(layer, start, end, colour, path, extra=""):
               "{\\an7\\pos(0,0)\\c%s%s\\p1}%s" % (colour, extra, path))
 
 
-# ---------------------------------------------------------------------------
-# Caption script. Each entry: (start, end, line1, line2)
-#
-# Every line must describe something visible in the frame. The footage has no
-# audio track, so nothing here may claim what was said during the session.
-# ---------------------------------------------------------------------------
-CAPTIONS = [
-    (4.8, 9.4, "لعبة الحلقات الملوّنة", "تدريب متكامل للطفل"),
-    (9.6, 14.2, "بيمسك ويسيب بأصابعه", "تقوية للعضلات الدقيقة"),
-    (14.4, 19.0, "وتناسق بين العين واليد", "في كل حلقة بيركّبها"),
-    (19.2, 24.0, "نبدأ بالحلقة الأكبر", "وبعدين الأصغر فالأصغر"),
-    (24.2, 29.0, "تمييز الأحجام والترتيب", "بيقوّي الإدراك والتركيز"),
-    (29.2, 34.0, "والتبادل: دوري.. ودورك", "أساس الانتباه المشترك"),
-    (34.2, 38.6, "وبيكمّل المهمة لآخرها", "من غير ما يسيبها في النص"),
-    (38.8, 43.2, "وأخيرًا.. البرج اكتمل", "نحتفل بكل نجاح صغير"),
-]
+def build_main(cfg, duration):
+    """The reel body: opening title over live footage, then timed captions.
 
-TITLE_MAIN = "تنمية مهارات"
-TITLE_SUB = "تناسق وتركيز وترتيب الأحجام"
+    Every caption must describe something visible in the frame. Footage with no
+    audio track cannot support any claim about what was said on camera.
+    """
+    theme = cfg["theme"]
+    title = cfg["title"]
+    accent = theme["accent"]
 
-
-def build_main(duration):
-    out = [HEADER]
+    out = [header(theme)]
     plate_path = rrect(PLATE_X, PLATE_Y, PLATE_W, PLATE_H, 34)
 
     # --- Opening title, overlaid on live footage so the reel never opens on
     # --- a static card (which costs retention in the first second).
-    t0, t1 = 0.25, 4.75
-    out.append(shape(1, t0, t1, TITLE_FILL,
+    t0, t1 = float(title["start"]), float(title["end"])
+    out.append(shape(1, t0, t1, theme["title_fill"],
                      rrect(TITLE_X, TITLE_Y, TITLE_W, TITLE_H, 30),
                      "\\fad(280,320)"))
     out.append(ev(2, t0, t1, "Big",
                   "{\\an5\\pos(%d,%d)\\fad(280,320)\\fscx90\\fscy90"
                   "\\t(0,300,\\fscx100\\fscy100)}%s"
-                  % (W // 2, TITLE_CY - 34, TITLE_MAIN)))
+                  % (W // 2, TITLE_CY - 34, title["main"])))
     out.append(ev(2, t0 + 0.18, t1, "Sub",
                   "{\\an5\\pos(%d,%d)\\fad(320,320)}%s"
-                  % (W // 2, TITLE_CY + 44, TITLE_SUB)))
-    # Small amber underline between the two title lines.
-    out.append(shape(2, t0 + 0.1, t1, AMBER,
+                  % (W // 2, TITLE_CY + 44, title["sub"])))
+    # Small accent underline between the two title lines.
+    out.append(shape(2, t0 + 0.1, t1, accent,
                      rrect(W // 2 - 60, TITLE_CY + 6, 120, 5, 2.5),
                      "\\fad(320,320)"))
 
     # --- Captions -------------------------------------------------------
-    for start, end, l1, l2 in CAPTIONS:
-        out.append(shape(1, start, end, PLATE_FILL, plate_path,
+    for start, end, l1, l2 in cfg["captions"]:
+        out.append(shape(1, start, end, theme["plate_fill"], plate_path,
                          "\\fad(220,220)"))
         out.append(ev(2, start, end, "Cap",
                       "{\\an5\\move(%d,%d,%d,%d,0,260)\\fad(220,220)}%s\\N%s"
                       % (W // 2, PLATE_CY + 14, W // 2, PLATE_CY, l1, l2)))
 
     # --- Progress bar: a quiet "how much is left" cue that lifts watch time.
-    out.append(shape(1, 0.0, duration, BAR_TRACK,
+    out.append(shape(1, 0.0, duration, theme["bar_track"],
                      rrect(PLATE_X, BAR_Y, BAR_W, BAR_H, BAR_H / 2.0),
                      "\\alpha&HB0&\\fad(400,300)"))
     out.append(ev(2, 0.0, duration, "Shape",
                   "{\\an7\\pos(%d,%d)\\c%s\\fscx0\\t(0,%d,\\fscx100)"
                   "\\fad(400,300)\\p1}%s"
-                  % (PLATE_X, BAR_Y, AMBER, int(duration * 1000),
+                  % (PLATE_X, BAR_Y, accent, int(duration * 1000),
                      rrect(0, 0, BAR_W, BAR_H, BAR_H / 2.0))))
     return "".join(out)
 
 
-OUTRO_LINES = [
-    ("Big", "كل طفل له إيقاعه الخاص", -120),
-    ("Big", "والصبر والتكرار سرّ التقدّم", -20),
-]
-OUTRO_CTA = "احفظوا الفيديو وشاركوه"
-
-
-def build_outro(duration):
-    out = [HEADER]
+def build_outro(cfg, duration):
+    theme = cfg["theme"]
+    outro = cfg["outro"]
+    out = [header(theme)]
     cy = H // 2
-    out.append(shape(1, 0.0, duration, AMBER,
+    out.append(shape(1, 0.0, duration, theme["accent"],
                      rrect(W // 2 - 70, cy + 60, 140, 6, 3),
                      "\\fad(500,400)"))
-    for i, (style, text, dy) in enumerate(OUTRO_LINES):
+    for i, (style, text, dy) in enumerate(outro["lines"]):
         out.append(ev(2, 0.15 + i * 0.35, duration, style,
                       "{\\an5\\move(%d,%d,%d,%d,0,420)\\fad(420,400)}%s"
                       % (W // 2, cy + dy + 22, W // 2, cy + dy, text)))
     out.append(ev(2, 1.1, duration, "Sub",
                   "{\\an5\\pos(%d,%d)\\fad(420,400)\\fs46}%s"
-                  % (W // 2, cy + 150, OUTRO_CTA)))
+                  % (W // 2, cy + 150, outro["cta"])))
     return "".join(out)
 
 
 if __name__ == "__main__":
-    main_dur = float(sys.argv[1])
-    outro_dur = float(sys.argv[2])
-    outdir = sys.argv[3]
+    cfg = project_mod.load(sys.argv[1])
+    main_dur = float(sys.argv[2])
+    outro_dur = float(sys.argv[3])
+    outdir = sys.argv[4]
     with open(os.path.join(outdir, "main.ass"), "w", encoding="utf-8") as fh:
-        fh.write(build_main(main_dur))
+        fh.write(build_main(cfg, main_dur))
     with open(os.path.join(outdir, "outro.ass"), "w", encoding="utf-8") as fh:
-        fh.write(build_outro(outro_dur))
+        fh.write(build_outro(cfg, outro_dur))
     print("wrote main.ass (%.2fs) and outro.ass (%.2fs)" % (main_dur, outro_dur))

@@ -1,0 +1,62 @@
+{
+  "name": "TEMPLATE",
+  "description": "Copy this to projects/<your-name>.json and fill it in. Every field below has a working default in scripts/project.py, so you may delete anything you do not want to change.",
+
+  "source": "build/my-footage.mov",
+  "output": "output/my-reel.mp4",
+
+  "video": {
+    "speed": 1.0,
+    "outro": 5.0,
+    "xfade": 0.6,
+    "fps": 30,
+    "grade": "eq=contrast=1.08:saturation=1.18:brightness=0.02:gamma=1.02",
+    "denoise": "hqdn3d=1.2:1.0:5:5",
+    "unsharp": "unsharp=5:5:0.55:5:5:0.0",
+    "vignette": "vignette=PI/5",
+    "crf": 17,
+    "preset": "slower",
+    "loudness": -14
+  },
+
+  "theme": {
+    "font": "Lemonada",
+    "white": "&H00FFFFFF",
+    "accent": "&H0055C8F7",
+    "outline": "&H00241A12",
+    "plate_fill": "&H4A1D1712",
+    "title_fill": "&H3A1D1712",
+    "bar_track": "&H8AFFFFFF"
+  },
+
+  "title": {
+    "main": "العنوان الرئيسي",
+    "sub": "سطر توضيحي صغير",
+    "start": 0.25,
+    "end": 4.75
+  },
+
+  "captions": [
+    [4.8, 9.4, "السطر الأول", "السطر التاني"],
+    [9.6, 14.2, "السطر الأول", "السطر التاني"]
+  ],
+
+  "outro": {
+    "lines": [
+      ["Big", "سطر ختامي", -120],
+      ["Big", "سطر ختامي تاني", -20]
+    ],
+    "cta": "الدعوة لاتخاذ إجراء"
+  },
+
+  "music": {
+    "mood": "kids",
+    "bpm": 104,
+    "transpose": 0
+  },
+
+  "post": {
+    "caption": "نص البوست الجاهز للنشر.",
+    "alt": "صيغة بديلة للبوست."
+  }
+}
