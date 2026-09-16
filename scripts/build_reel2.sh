@@ -113,7 +113,7 @@ ffmpeg -v warning -stats -y \
     [2:a]${LOUDNORM},alimiter=limit=0.79:level=false,aresample=${SR}[a]
   " \
   -map "[v]" -map "[a]" \
-  -c:v libx264 -preset slower -crf 17 -profile:v high -level:v 4.1 \
+  -c:v libx264 -preset slower -crf 22 -profile:v high -level:v 4.1 \
   -pix_fmt yuv420p -r $FPS -g 60 -keyint_min 30 -sc_threshold 0 \
   -color_primaries bt709 -color_trc bt709 -colorspace bt709 \
   -c:a aac -b:a 192k -ar $SR -ac 2 \
