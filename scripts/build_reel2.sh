@@ -3,9 +3,9 @@
 #
 #   ./scripts/build_reel2.sh [SOURCE] [OUTPUT]
 #
-# Unlike the first reel, this source carries the therapist's voice. The voice is
-# the evidence for the auditory-discrimination goal, so it is kept, cleaned, and
-# the music is side-chained to duck underneath it.
+# This source carries the therapist's voice, which is the evidence for the
+# auditory-discrimination goal. It is the only audio: no music, so nothing
+# competes with the instructions the child is responding to.
 #
 # Output: 1080x1920, 30fps, H.264 High + AAC, faststart, ~-14 LUFS.
 
@@ -16,8 +16,8 @@ SRC="${1:-$ROOT/build/source2.mov}"
 OUT="${2:-$ROOT/output/reel2_facebook.mp4}"
 BUILD="$ROOT/build"
 
-SPEED=1.3          # atempo keeps the voice at its original pitch
-OUTRO=5.0
+SPEED=1.5          # atempo keeps the voice at its original pitch
+OUTRO=4.5
 XFADE=0.6
 FPS=30
 SR=48000
@@ -28,34 +28,25 @@ SRC_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$SRC")
 MAIN_DUR=$(python3 -c "print('%.4f' % ($SRC_DUR / $SPEED))")
 TOTAL=$(python3 -c "print('%.4f' % ($MAIN_DUR + $OUTRO - $XFADE))")
 XFADE_AT=$(python3 -c "print('%.4f' % ($MAIN_DUR - $XFADE))")
-MUSIC_DUR=$(python3 -c "print('%.2f' % ($TOTAL + 0.3))")
-FADE_AT=$(python3 -c "print('%.2f' % ($TOTAL - 2.2))")
+FADE_AT=$(python3 -c "print('%.2f' % ($TOTAL - 1.5))")
 
 echo ">> source ${SRC_DUR}s -> main ${MAIN_DUR}s + outro ${OUTRO}s = ${TOTAL}s"
-
-echo ">> generating music"
-python3 "$ROOT/scripts/make_music.py" "$BUILD/music2.wav" "$MUSIC_DUR"
 
 echo ">> generating captions"
 python3 "$ROOT/scripts/gen_subs2.py" "$MAIN_DUR" "$OUTRO" "$BUILD"
 
 # The voice is recorded in a hard room and clips at 0 dBFS, so it needs a
-# high-pass for rumble, gentle broadband denoise, and a limiter before it can
-# sit under music. apad carries silence across the end card.
-echo ">> mixing audio (voice + ducked music)"
-ffmpeg -v error -y -i "$SRC" -i "$BUILD/music2.wav" -filter_complex "
+# high-pass for rumble, broadband denoise, and compression before it can stand
+# alone. apad carries silence across the end card.
+echo ">> preparing voice track"
+ffmpeg -v error -y -i "$SRC" -filter_complex "
   [0:a]atempo=${SPEED},aresample=${SR},
        highpass=f=85,
-       afftdn=nr=12:nf=-30,
+       afftdn=nr=14:nf=-30,
        acompressor=threshold=0.089:ratio=3:attack=20:release=250:makeup=1.8,
        alimiter=limit=0.88:level=false,
        apad=whole_dur=${TOTAL},atrim=0:${TOTAL},asetpts=PTS-STARTPTS,
-       asplit=2[vmix][vkey];
-  [1:a]aresample=${SR},atrim=0:${TOTAL},asetpts=PTS-STARTPTS,volume=0.34[m0];
-  [m0][vkey]sidechaincompress=threshold=0.035:ratio=7:attack=12:release=380[mduck];
-  [vmix][mduck]amix=inputs=2:normalize=0,
-       alimiter=limit=0.90:level=false,
-       afade=t=out:st=${FADE_AT}:d=2.2[a]
+       afade=t=out:st=${FADE_AT}:d=1.5[a]
 " -map "[a]" -c:a pcm_s16le "$BUILD/mix2.wav"
 
 echo ">> measuring loudness"
