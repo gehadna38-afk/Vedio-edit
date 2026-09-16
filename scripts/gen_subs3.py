@@ -53,21 +53,33 @@ DOT_COLOURS = ("&H003CC8F5", "&H004BB43C")
 
 GOALS = ("التطابق", "التدريب على حل المشكلات")
 GOALS_HEADER = "هدف الجلسة"
-GOALS_IN, GOALS_OUT = 4.3, 10.0
+GOALS_IN, GOALS_OUT = 3.8, 8.5
 
 BRAND = "سوبر نينو"
 TITLE_MAIN = "جلسة تنمية مهارات"
 TITLE_SUB = "صندوق الأشكال"
 
-# (start, end, line1, line2)
-CAPTIONS = [
-    (10.6, 17.4, "الطفل بيشوف الشكل", "ويدوّر على مكانه المطابق"),
-    (17.7, 24.5, "مش أول مرة بيظبط", "بيجرّب ويلفّ القطعة"),
-    (24.8, 31.6, "ودي بالظبط حل المشكلات", "يحاول.. يعدّل.. ينجح"),
-    (31.9, 38.7, "كل شكل له مكان واحد بس", "مثلث.. دايرة.. مربع"),
-    (39.0, 45.8, "بيقارن بعينه قبل ما يحط", "تآزر بصري حركي"),
-    (46.1, 52.4, "وخطوة بخطوة الصندوق بيمتلي", "نحتفل بكل قطعة بتدخل"),
+# Caption text only; the timings are derived from the main duration, so
+# changing which segments are kept in build_reel3.sh cannot leave the captions
+# running past the end of the footage.
+CAPTION_TEXTS = [
+    ("الطفل بيشوف الشكل", "ويدوّر على مكانه المطابق"),
+    ("بيجرّب ويلفّ القطعة", "لحد ما تدخل"),
+    ("كل شكل له مكان واحد بس", "مثلث.. دايرة.. مربع"),
+    ("وخطوة بخطوة الصندوق بيمتلي", "نحتفل بكل قطعة بتدخل"),
 ]
+CAPTIONS_START = 9.0
+CAPTION_GAP = 0.3
+
+
+def caption_slots(duration):
+    """Spread the captions evenly across whatever is left after the goals."""
+    span = duration - CAPTIONS_START - CAPTION_GAP
+    slot = span / float(len(CAPTION_TEXTS))
+    for i, (l1, l2) in enumerate(CAPTION_TEXTS):
+        start = CAPTIONS_START + i * slot
+        yield start, start + slot - CAPTION_GAP, l1, l2
+
 
 HEADER = """[Script Info]
 ScriptType: v4.00+
@@ -102,7 +114,7 @@ def build_main(duration):
                          "\\alpha&H60&\\fad(500,400)"))
 
     # --- Opening title ---------------------------------------------------
-    t0, t1 = 0.3, 4.0
+    t0, t1 = 0.3, 3.5
     out.append(shape(1, t0, t1, PLATE_FILL,
                      rrect(TITLE_X, TITLE_TOP, TITLE_W, TITLE_H, 30),
                      "\\fad(260,300)"))
@@ -158,8 +170,8 @@ def build_main(duration):
 
     # --- Captions: numbered steps, below the footage ---------------------
     bar_path = rrect(BAR_X, BAR_TOP, BAR_W, BAR_H, 34)
-    seg_w = BAR_W / float(len(CAPTIONS))
-    for i, (start, end, l1, l2) in enumerate(CAPTIONS):
+    seg_w = BAR_W / float(len(CAPTION_TEXTS))
+    for i, (start, end, l1, l2) in enumerate(caption_slots(duration)):
         colour = STEP_COLOURS[i % len(STEP_COLOURS)]
         dur = int((end - start) * 1000)
         # Right-to-left reveal, matching the reading direction.
