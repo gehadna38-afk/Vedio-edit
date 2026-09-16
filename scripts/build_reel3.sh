@@ -18,20 +18,21 @@ SRC="${1:-$ROOT/build/source3.mov}"
 OUT="${2:-$ROOT/output/reel3_facebook.mp4}"
 BUILD="$ROOT/build"
 
-# Segments where the CHILD is placing a shape, as start:end in source seconds.
-# The stretches in between are the therapist explaining or handing him a piece,
-# which is not what the reel is selling.
+# Segments where the CHILD is placing a shape AND the cube is intact.
+# Two things get a clip rejected: the therapist holding the piece or
+# explaining, and the cube being apart. It comes apart from about 38s to 45s
+# and again briefly around 93s, and open footage makes the centre's equipment
+# look broken, so none of that can be used however good the child's hands are.
 SEGMENTS=(
   "4.0:8.5"       # pushes the yellow block into the top
-  "10.0:14.5"     # presses the next piece home
-  "36.0:44.5"     # the long run: orange in, hand into the side opening
-  "46.0:50.5"     # keeps going on the top face
-  "85.0:89.5"     # yellow seated, then the filled face
-  "92.5:95.5"     # both hands working the top
-  "110.5:116.5"   # blue block into the side, then the result
+  "10.0:14.0"     # presses the next piece home
+  "46.0:51.0"     # orange into the face, cube back together
+  "85.0:92.8"     # yellow seated, then blue into a hole
+  "95.0:97.5"     # working the top, shapes seated
+  "110.0:116.5"   # blue block into the side, then the result
 )
 
-SPEED=1.1
+SPEED=1.0
 OUTRO=4.5
 XFADE=0.6
 FPS=30

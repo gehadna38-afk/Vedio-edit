@@ -53,7 +53,7 @@ DOT_COLOURS = ("&H003CC8F5", "&H004BB43C")
 
 GOALS = ("التطابق", "التدريب على حل المشكلات")
 GOALS_HEADER = "هدف الجلسة"
-GOALS_IN, GOALS_OUT = 3.8, 8.5
+GOALS_IN, GOALS_OUT = 3.5, 8.0
 
 BRAND = "سوبر نينو"
 TITLE_MAIN = "جلسة تنمية مهارات"
@@ -68,7 +68,7 @@ CAPTION_TEXTS = [
     ("كل شكل له مكان واحد بس", "مثلث.. دايرة.. مربع"),
     ("وخطوة بخطوة الصندوق بيمتلي", "نحتفل بكل قطعة بتدخل"),
 ]
-CAPTIONS_START = 9.0
+CAPTIONS_START = 8.5
 CAPTION_GAP = 0.3
 
 
@@ -114,7 +114,7 @@ def build_main(duration):
                          "\\alpha&H60&\\fad(500,400)"))
 
     # --- Opening title ---------------------------------------------------
-    t0, t1 = 0.3, 3.5
+    t0, t1 = 0.3, 3.2
     out.append(shape(1, t0, t1, PLATE_FILL,
                      rrect(TITLE_X, TITLE_TOP, TITLE_W, TITLE_H, 30),
                      "\\fad(260,300)"))
